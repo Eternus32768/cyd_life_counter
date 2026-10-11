@@ -1,0 +1,82 @@
+# 受入テスト・チェックリスト
+
+## 自動テスト（ホストで実行）
+`make check` で全件実行。2026-10-11 時点で 69 件すべて成功（Codexレビュー反映・平置き対応・ダブルタップ確定後）。
+
+- [x] 初期状態は P1〜P4 全て0 — `initial_state_is_zero_for_all_players`
+- [x] P1の+でP1のみ1、続く−で0、さらに−で-1 — `increment_and_decrement_affect_only_target_player`
+- [x] 任意のPのリセットで当該Pのみ0。他Pの値は保持 — `reset_clears_only_target_player`
+- [x] リセットはダブルタップでのみ確定し、1回目・猶予切れ・他操作では実行されない — `test_reset_confirmation.cpp`
+- [x] リセット後の+/-が正常 — `operations_work_after_reset`
+- [x] 不正playerId/未知actionで状態不変、メモリ破壊なし — `invalid_player_id_does_not_change_state`, `unknown_action_does_not_change_state`（ASan/UBSanでも実行）
+- [x] INT32_MAXで+、INT32_MINで−してもオーバーフローなし — `saturates_at_int32_max`, `saturates_at_int32_min`
+- [x] UIヒットテスト: 4領域、±、リセット、境界、領域外 — `test_layout.cpp`（全ピクセル走査を含む）
+- [x] 数値・ラベル・記号が操作領域へはみ出さない — `test_text_layout.cpp`（Codex指摘 R01 の再発防止）
+- [x] 上行(P1/P2)が180°回転、`+`/`−` が各プレイヤー視点で正しい — `test_layout.cpp`, `test_screen_presenter.cpp`
+- [x] 上下の行の文字が鏡像対称、同じ列の数値が縦一直線 — `test_text_layout.cpp`（実機指摘の再発防止）
+- [x] タッチ押下保持で連続発火せず、離して再タップで再発火 — `holding_the_finger_does_not_repeat`, `release_and_tap_again_emits_again`
+- [x] タッチ座標の回転・補正がUIロジックから独立 — `gate_works_with_externally_corrected_coordinates` + `make check-layers`
+- [x] domainのホストビルドにArduino/ESP32/画面ライブラリ不要 — `make domain-only`
+
+## ビルド・静的検査
+- [x] ホスト単体テスト成功 — `make test`（g++ 15.2.0, 57件成功, 2026-10-11）
+- [x] 静的検査/lint成功 — `-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Werror` および `make check-layers`、`make test-asan`（ASan/UBSan、`-fno-sanitize-recover=undefined` で検出時は非ゼロ終了）
+- [x] ターゲットビルド成功 — `esp32:esp32:esp32`（arduino-cli 1.5.1 / esp32:esp32 3.3.12 / LovyanGFX 1.2.28）、`--warnings all` で警告0、2026-10-11
+  - 既定（ST7789）: Flash 339,043B (25%) / RAM 23,744B (7%)
+  - `-DCYD_PANEL_ILI9341`: Flash 351,227B (26%) / RAM 23,872B (7%)
+  - `-DCYD_TOUCH_CALIBRATION`: Flash 352,227B (26%) / RAM 23,872B (7%)
+
+## 人間による実機試験
+実施日 2026-10-11 / ボード刻印 ESP32-2432S028 / 向きの基準: USBコネクタが右
+設定: 回転1・invert=false・rgb_order=false・touch offset_rotation=4・生値 x420-3750 y350-3700
+
+- [x] 電源投入後、4領域の数字が0
+- [x] 4人分の+/-が表示と一致、誤領域操作なし（P1操作でP1が増減することを確認）
+- [x] 各リセットが対象者のみに作用
+- [x] 画面端・角・境界のタッチ精度が実用範囲（下端のリセット帯の反応に違和感なし）
+- [x] 連打・長押し・指をずらす操作で誤増減なし（2026-10-11 確認、問題なし）
+- [x] 数字の負号、桁数、文字の読みやすさ — **負号込み3文字まで**実機で確認（例 `-99`）。
+      桁数が増えると自動で縮小する実装で、最大11文字（`-2147483648`）の見え方は未確認。
+      実使用上は現状で問題なしと判断（2026-10-11）。
+- [x] 再起動で全員0に戻る（書き込み・リセットの度に全員0で起動）
+- [x] 画面の回転・色・バックライトが正常（パレットを中間調へ変更後に識別性を確認）
+
+### 試験中に判明し修正した項目
+| 症状 | 原因 | 修正 |
+|---|---|---|
+| 純色が補色で表示（赤→水色／黄） | `invert=true` が不要な個体 | `kPanelInvert = false` |
+| 赤と青が入れ替わって見える | 上記の反転による見え方で、色順の問題ではなかった | `kPanelRgbOrder = false`（元に戻す） |
+| 操作したエリアと別のプレイヤーが反応 | タッチ実効回転の誤り | `kTouchOffsetRotation = 4`（r=5） |
+| 画面下端のタッチが届かない | 生値レンジが広すぎた（300〜3900） | 実測に合わせて x420-3750 / y350-3700 |
+| 背景4色が暗く識別しづらい | 初期パレットが暗色 | 中間調のパレットへ変更 |
+| 上下の行で文字が1ピクセル非対称 | 中央寄せの端数を全領域で同じ向きに丸めていた | 縦の端数をプレイヤー自身の上側へ寄せる |
+| 同じ列の数値がフォント1ドットずれる | セル(6×8)と実インク(5×7)の余白が180°回転で反対側へ移る | インク矩形を基準に中央寄せ |
+
+### リセットのダブルタップ確定の実機確認（2026-10-11）
+- [x] `R` 1回では値が変わらず、待機表示（黄）になる
+- [x] 続けてもう一度 `R` で当該プレイヤーのみ 0 になる
+- [x] 放置すると待機が解除され赤に戻る
+- [x] `+` / `−` にデグレなし
+- [x] 猶予 1000ms が操作感として適切（500ms は短すぎた。1000ms で確定、2026-10-11）
+
+### 平置き4人運用の実機確認（2026-10-11）
+- [x] P1/P2 の文字（ラベル・数値・`+`・`−`・`R`）が対面側から読める向き
+- [x] P1/P2 で対面側から見て上の `+` を押すと増える
+- [x] P3/P4 は手前側から読める向きのまま、`+` が上
+- [x] 上下の行の文字位置が揃い、同じ列の数値が縦一直線
+- [x] 向き変更によるタッチ・色・増減方向のデグレなし
+
+## 描画層を変更したときの回帰確認（実機で1分、ホストテストでは検出できない）
+`src/platform/cyd/cyd_renderer.cpp` / `lgfx_display.cpp` / `src/ui/text_metrics.*` /
+`src/platform/cyd/board_config.h` を変更したら、書き込んで次の4点を目視する。
+ホストテストは計算結果までしか検証せず、LovyanGFX が実際にパネルへ描く段階は確認していない。
+
+- [ ] **P1/P2 の文字が鏡文字でない**（回転3が回転1の180°である前提の確認。鏡文字なら `kRotated180` を 7 に）
+- [ ] **P1 と P3 の数値が縦一直線**（内蔵フォントのセル6×8・インク5×7という前提の確認。
+      ずれるなら `kFont0Metrics` が実フォントと合っていない）
+- [ ] **画面が乱れない・描き残しがない**（`startWrite()` 中に `setRotation()` を呼んでいるため）
+- [ ] **タッチが従来どおり正しいプレイヤーに当たる**（回転の戻し漏れがあるとタッチ変換まで壊れる）
+
+いずれかが崩れたら、該当する前提が成立していない。`tools/cyd_probe` で切り分ける。
+
+記録: 実施日、ボード刻印、ファームウェア版、結果、再現手順、写真/ログの有無。
