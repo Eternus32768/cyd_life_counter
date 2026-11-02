@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <!-- Android 16(targetSdk 36)は幅600dp以上の画面で screenOrientation を無視する。平置きの座席配置が
+             回転で崩れるため、一時的に旧挙動（互換モード）へオプトアウトする。targetSdk 37 では無効になる
+             ので、その時点で固定方向の実現方法を再検討すること（android/DECISIONS.md）。 -->
+        <property
+            android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
+            android:value="true" />
+
+        <!-- 平置き運用のため横向き固定。設定変更で Activity が作り直され値が消えないよう configChanges を自前処理する -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboardHidden|keyboard|navigation|uiMode|fontScale|locale|layoutDirection|colorMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
