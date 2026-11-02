@@ -41,3 +41,12 @@
 
 受入条件（tests/ACCEPTANCE.md）はすべて確認済み。多桁表示のみ負号込み3文字までの確認で、
 最大11文字の見え方は未確認（自動縮小する実装、実使用上は問題なしと判断）。
+
+## Android版（`android/`、詳細は `android/DECISIONS.md`）
+- [x] Phase 0: 環境確認（JDK 21 / Android SDK 36 / Gradle 9.3.1）。タブレット・平置き4人・Kotlin で確定
+- [x] Phase 1: `core` モジュール（domain / application / layout / reset確認）と JUnit（現在51件）— `./gradlew :core:test` 成功
+- [x] Phase 2: Android UI（`View`+`Canvas` 描画、ポインタ入力→コマンド、横固定・常時点灯）。`:app:assembleDebug` / `lintDebug` 成功（エラー0）。見た目をモダンに再設計（2026-11-02）
+- [x] Phase 3: APK ビルド、実機（タブレット）確認、SPEC/ACCEPTANCE の Android 節（2026-11-02、人間の実機確認はすべて問題なし。`tests/ACCEPTANCE.md`）
+  - 2026-11-02 実機(iPlay 70 mini Ultra, Android 14, 2560×1600)に無線デバッグでインストール済み。`adb input tap` で ±・リセット2回タップ・領域独立を確認。
+    **残り**: 実機タブレット（最小幅600dp以上）の Android 16 での向き固定（Pixel 9 Pro XL の疑似検証は済）、署名付きリリース APK・配布（必要になったら）
+- [x] Codex レビュー（`prompts/CODEX_REVIEW.md`）— 2026-11-02、`docs/REVIEW_LOG.md`。AR01/AR02/AN01/AN02 を反映。AJ01（独立待機）・AJ02（離してから2回目）は承認のうえ実装（core 51件成功）。`SPEC.md` に Android版の差分を追記
